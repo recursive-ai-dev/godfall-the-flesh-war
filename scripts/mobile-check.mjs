@@ -1,0 +1,28 @@
+import { chromium } from '@playwright/test';
+import assert from 'node:assert/strict';
+const browser=await chromium.launch({headless:true});
+const page=await browser.newPage({viewport:{width:390,height:844},hasTouch:true,isMobile:true,deviceScaleFactor:2});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));
+await page.goto(process.env.GODFALL_URL || 'http://127.0.0.1:5173');
+await page.getByRole('button',{name:'Begin the Flesh War'}).tap();
+await page.waitForTimeout(3600);
+assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'battle HUD fits a phone');
+await page.keyboard.press('r');await page.waitForTimeout(200);
+const left=page.getByRole('button',{name:'Pan left',exact:true});
+assert.equal(await left.count(),1);
+await left.hover();await page.mouse.down();await page.waitForTimeout(2500);await page.mouse.up();await page.waitForTimeout(150);
+assert.equal(await left.count(),0,'left arrow hides at the map boundary');
+const right=page.getByRole('button',{name:'Pan right',exact:true});
+await right.hover();await page.mouse.down();await page.waitForTimeout(500);await page.mouse.up();await page.waitForTimeout(150);
+assert.equal(await left.count(),1,'left arrow returns after moving away from boundary');
+await page.keyboard.press(' ');await page.waitForTimeout(150);
+await page.getByRole('button',{name:/idle workers/}).tap();
+await page.getByRole('button',{name:'Give order',exact:true}).tap();
+const field=page.locator('canvas').first();
+// The first canvas is the playfield, rendered above the minimap.
+const box=await field.boundingBox();
+await page.touchscreen.tap(box.x+box.width*.65,box.y+box.height*.6);
+assert.equal(await page.getByRole('button',{name:'Give order',exact:true}).getAttribute('aria-pressed'),'false','touch command is consumed');
+await page.screenshot({path:'/tmp/godfall-mobile.png'});
+assert.deepEqual(errors,[]);
+await browser.close();console.log('Mobile HUD, hold-to-pan, boundary hiding/reappearance, and touch orders passed.');

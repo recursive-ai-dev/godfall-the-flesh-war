@@ -1,0 +1,86 @@
+GODFALL: THE FLESH WAR
+
+Run: npm ci && npm run dev
+Checks: npm run typecheck && npm test && npm run test:battles && npm run build
+Browser checks (dev server on port 5173, or set GODFALL_URL): npm run test:browser
+Browser tooling: npx playwright install chromium
+
+MATCH RULES
+Three playable factions fight a free-for-all against two independent commanders.
+Destroy both rival factions' buildings to win; losing all your buildings is defeat.
+Soldiers within 144px of the central remains advance their faction's ritual.
+Two or more hosts in the circle pause all rituals. Progress is never lost.
+After 180 uncontested seconds, the faction awakens permanently: double unit and
+building health, 1.8x damage, and 20% faster movement. New recruits and buildings
+inherit these bonuses. Ritual completion does NOT end the game. Every faction
+can complete its own ritual to counter an awakened opponent.
+
+FACTIONS
+Humans: +20% unit health; E activates 8s of shield wall (half incoming damage,
+half movement speed, 24s cooldown). Champions provide 15% damage and defense
+bonuses within 100px. Towers have 30% more health.
+Dark elves: +15% movement speed; E blinks soldiers up to 96px toward the cursor
+through explored ground (18s cooldown). Forest edges conceal them unless an enemy
+is within 80px or they attacked recently. Nightbows inflict 3 damage/s for 4s.
+Corrupted: attacks have 25% shorter cooldowns. E activates 8s of frenzy (28s
+cooldown): another 45% shorter attack cooldown, faster movement and uncontrolled
+pursuit. New orders are ignored during frenzy. Nearby corpses restore 30 health;
+three meals permanently increase maximum health and damage by 25%.
+
+CONTROLS
+Left click/drag: select. Right click: move, attack, gather, build, or rally.
+Shift + command: queue up to 12 orders. Gathering runs until that node is depleted.
+Q: attack-move; X: hold position; E: faction ability; I: idle worker; R: remains.
+H: select hall; Space: center hall; WASD/arrows/edge hover/middle drag: pan.
+Wheel: gentle cursor-centered zoom. Ctrl+1–9: assign groups; 1–9: recall.
+Escape: cancel placement or attack-move, then pause. Backspace/Delete: stop.
+A selection of only workers (one or many) offers Build; workers mixed with
+soldiers get soldier commands. Halls and barracks cannot train until their
+construction finishes. Surrender (pause menu) ends the match with the Defeat
+screen and battle statistics.
+The camera opens centred on your hall (as far as the map edge allows).
+Touch: tap a unit, then Give order and tap a destination. Press-and-hold edge
+arrows pan; unavailable directions disappear at the map boundary. Use the
+command panel for attacks, abilities and building placement. Ritual status can
+be expanded on narrow screens (collapsed by default); command buttons scroll
+horizontally. Give order/Cancel sit in the playfield's bottom-right corner.
+
+AI AND MAP
+Three difficulty levels adjust reaction time, march timing, force size, retreat
+threshold and ability use; there are no hidden resource multipliers.
+Commanders contest the remains before invading, retreat wounded units, recover
+near their hall, and expand toward fresh mines when local gold is exhausted.
+Central approaches are cleared on every seed, with narrow forest flanks and
+ruined structures around the objective. Construction leaves lanes between buildings.
+Units use smaller collision radii and approach building facades at sub-tile positions.
+
+SPRITES AND ANIMATION
+All PNG artwork comes from /home/woez/Projects/shed-dev-sprites.
+Regenerate with:
+  /home/woez/Projects/shed-dev-sprites/.venv/bin/python scripts/generate_assets.py
+Set SHED_SPRITES to override the repository location.
+The generator's human animation engine supplies walk_pose and attack_pose for
+four directions, eight frames per action, using frames=8 and align=False to
+keep the rig anchored across frames. generator.sheet.make_sheet packs 32px
+cells into 8-column transparent atlases. Rendering chooses rows from direction
+and action, and columns from the animation clock. No generator changes or
+runtime sprite service are required. Each of the 15 unit roles has 64 frames.
+public/sprites/manifest.json records source, seeds, options and frame hashes;
+atlas JSON sidecars record cell layouts. All 111 PNGs are pre-generated.
+Canvas geometry handles trees, mine markers, selection UI and combat effects.
+
+FONTS
+The game makes no external requests. Cinzel and Cinzel Decorative (SIL OFL 1.1)
+are self-hosted in public/fonts with credits and licence text; body text uses
+the system sans-serif stack.
+
+TESTS
+npm test covers ritual contesting and counter-rituals, awakening inheritance,
+shield/officer effects, shadow-step, concealment, poison, corpse mutation,
+queued orders, hold position, central routes across seeds, economy round trips,
+construction/training, building combat, multi-worker selection commands,
+training blocked on unfinished buildings, and surrender.
+npm run test:battles simulates three seeded battles with all factions and
+all difficulty levels, requiring a result, ritual completion and viable economies.
+Browser checks launch every faction, exercise pause/resume, verify phone HUD
+fit, touch commands, and pan-arrow disappearance/reappearance at boundaries.
