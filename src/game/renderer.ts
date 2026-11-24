@@ -1,5 +1,5 @@
 import { RELIC, detectable, concealed, type Ritual, type Corpse } from './warfare';
-import { sprite } from "../media";
+import { atlasMeta, blobTileIndex, sprite } from "../media";
 import { BUILDING } from "./data";
 import {
   MAP_H,
@@ -83,11 +83,17 @@ export function renderWorld(
   drawTerrain(ctx, v, x0, y0, x1, y1);
   drawDecorations(ctx, v, x0, y0, x1, y1);
   drawRelic(ctx,v);
+  const corpseImg = sprite('corpse');
   for(const c of v.corpses) {
     const tx=Math.floor(c.x/TILE),ty=Math.floor(c.y/TILE);
     if(tx<0||ty<0||tx>=MAP_W||ty>=MAP_H||v.vis[ty*MAP_W+tx]!==2) continue;
-    ctx.fillStyle='#713a3d';ctx.fillRect(c.x-7,c.y-2,14,4);
-    ctx.fillStyle='#b8a28a';ctx.fillRect(c.x-4,c.y-1,8,2);
+    if (corpseImg) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(corpseImg, c.x - 16, c.y - 18, 32, 32);
+    } else {
+      ctx.fillStyle='#713a3d';ctx.fillRect(c.x-7,c.y-2,14,4);
+      ctx.fillStyle='#b8a28a';ctx.fillRect(c.x-4,c.y-1,8,2);
+    }
   }
 
   const visTrees = v.trees.filter((t) => {
@@ -167,6 +173,38 @@ export function renderWorld(
   ctx.restore();
 }
 
+const BLOB_KIND: Record<number, string> = {
+  [TERRAIN.DIRT]: "dirt",
+  [TERRAIN.WATER]: "water",
+  [TERRAIN.FOREST]: "moss",
+  [TERRAIN.ROCK]: "stone",
+};
+
+function canonicalBlobMask(
+  terrain: Uint8Array,
+  x: number,
+  y: number,
+  t: number,
+): number {
+  const same = (nx: number, ny: number) => {
+    if (nx < 0 || ny < 0 || nx >= MAP_W || ny >= MAP_H) return true;
+    const nt = terrain[ny * MAP_W + nx];
+    // Gold mines sit on rock/stone ground visually
+    if (t === TERRAIN.ROCK && nt === TERRAIN.GOLD) return true;
+    return nt === t;
+  };
+  const n = same(x, y - 1);
+  const e = same(x + 1, y);
+  const s = same(x, y + 1);
+  const w = same(x - 1, y);
+  let m = (n ? 1 : 0) | (e ? 2 : 0) | (s ? 4 : 0) | (w ? 8 : 0);
+  if (n && e && same(x + 1, y - 1)) m |= 16;
+  if (e && s && same(x + 1, y + 1)) m |= 32;
+  if (s && w && same(x - 1, y + 1)) m |= 64;
+  if (w && n && same(x - 1, y - 1)) m |= 128;
+  return m;
+}
+
 function drawTerrain(
   ctx: CanvasRenderingContext2D,
   v: RenderView,
@@ -175,6 +213,7 @@ function drawTerrain(
   x1: number,
   y1: number,
 ) {
+  ctx.imageSmoothingEnabled = false;
   for (let y = y0; y < y1; y++) {
     for (let x = x0; x < x1; x++) {
       const i = y * MAP_W + x;
@@ -182,32 +221,27 @@ function drawTerrain(
       const t = v.terrain[i];
       const px = x * TILE;
       const py = y * TILE;
-      const name = ["grass", "dirt", "water", "moss", "sand", "stone"][t];
-      const img = sprite(name);
-      ctx.imageSmoothingEnabled = false;
-      if (img) ctx.drawImage(img, px, py, TILE, TILE);
+      const grassVariant = ((x * 73856093) ^ (y * 19349663)) & 3;
+      const grassImg = sprite(`grass-${grassVariant}`) ?? sprite("grass");
+      if (grassImg) ctx.drawImage(grassImg, px, py, TILE, TILE);
       else { ctx.fillStyle = "#26332a"; ctx.fillRect(px, py, TILE, TILE); }
 
-    }
-  }
-
-  // Shore highlight
-  for (let y = y0; y < y1; y++) {
-    for (let x = x0; x < x1; x++) {
-      const i = y * MAP_W + x;
-      if (v.terrain[i] === TERRAIN.WATER || !v.explored[i]) continue;
-      let shore = false;
-      for (let dy = -1; dy <= 1 && !shore; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          const nx = x + dx;
-          const ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= MAP_W || ny >= MAP_H) continue;
-          if (v.terrain[ny * MAP_W + nx] === TERRAIN.WATER) shore = true;
+      const blobKind = BLOB_KIND[t];
+      if (blobKind) {
+        const atlas = sprite(`${blobKind}-blob47`);
+        if (atlas) {
+          const mask = canonicalBlobMask(v.terrain, x, y, t);
+          const idx = blobTileIndex(blobKind, mask);
+          const col = idx & 7;
+          const row = idx >> 3;
+          ctx.drawImage(atlas, col * 32, row * 32, 32, 32, px, py, TILE, TILE);
+          continue;
         }
       }
-      if (shore) {
-        ctx.fillStyle = "rgba(214, 186, 110, 0.35)";
-        ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+      if (t !== TERRAIN.GRASS) {
+        const name = ["grass", "dirt", "water", "moss", "sand", "stone"][t];
+        const img = sprite(name);
+        if (img) ctx.drawImage(img, px, py, TILE, TILE);
       }
     }
   }
@@ -232,7 +266,7 @@ function drawDecorations(
     const ty = Math.max(0, Math.min(MAP_H - 1, (d.y / TILE) | 0));
     if (!v.explored[ty * MAP_W + tx]) continue;
     if(d.type === 'ruin') {
-      const img=sprite('ruin');if(img) {ctx.globalAlpha=.7;ctx.drawImage(img,d.x-32,d.y-36,64,64);ctx.globalAlpha=1;}
+      const img=sprite('ruin');if(img) {ctx.imageSmoothingEnabled=false;ctx.globalAlpha=.78;ctx.drawImage(img,d.x-24,d.y-30,48,48);ctx.globalAlpha=1;}
     } else if (d.type === "flower") {
       ctx.fillStyle = d.v > 0.5 ? "#d4c85a" : "#c45a7a";
       ctx.beginPath();
@@ -290,12 +324,22 @@ function drawMine(ctx: CanvasRenderingContext2D, m: GoldMine, time: number) {
   ctx.ellipse(-8, 0, 8, 6, 0, 0, TAU);
   ctx.fill();
   const spark = 0.5 + Math.sin(time * 3 + m.id) * 0.5;
-  ctx.fillStyle = `rgba(240,200,60,${0.45 + spark * 0.4})`;
-  ctx.beginPath();
-  ctx.arc(-6, 2, 3, 0, TAU);
-  ctx.arc(8, 4, 2.4, 0, TAU);
-  ctx.arc(2, -4, 2.8, 0, TAU);
-  ctx.fill();
+  const gem = sprite("gold-gem");
+  if (gem && m.gold > 0) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.globalAlpha = 0.8 + spark * 0.2;
+    ctx.drawImage(gem, -15, -10, 18, 18);
+    ctx.drawImage(gem, 0, -14, 16, 16);
+    ctx.drawImage(gem, -2, -4, 18, 18);
+    ctx.globalAlpha = 1;
+  } else {
+    ctx.fillStyle = `rgba(240,200,60,${0.45 + spark * 0.4})`;
+    ctx.beginPath();
+    ctx.arc(-6, 2, 3, 0, TAU);
+    ctx.arc(8, 4, 2.4, 0, TAU);
+    ctx.arc(2, -4, 2.8, 0, TAU);
+    ctx.fill();
+  }
   ctx.fillStyle = "#c9a227";
   ctx.font = "bold 9px sans-serif";
   ctx.textAlign = "center";
@@ -381,12 +425,19 @@ function drawScaffold(ctx: CanvasRenderingContext2D, b: Building) {
 function drawUnit(ctx: CanvasRenderingContext2D, u: Unit, v: RenderView) {
   const selected = v.selected.has(u.id);
   const dead = u.state === "dead";
+  const atlasName = `${u.faction}-${u.type}-atlas`;
+  const meta = atlasMeta(atlasName);
+  const actions = meta?.actions ?? ["walk", "attack"];
+  const hasDeath = dead && actions.includes("death");
+
   ctx.save();
   ctx.translate(u.x, u.y);
   if (dead) {
-    ctx.globalAlpha = Math.max(0, 1 - u.anim * 1.1);
-    ctx.rotate(0.8);
-    ctx.scale(1, 0.45);
+    ctx.globalAlpha = Math.max(0, 1 - u.anim * 0.9);
+    if (!hasDeath) {
+      ctx.rotate(0.8);
+      ctx.scale(1, 0.45);
+    }
   }
 
   ctx.fillStyle = "rgba(0,0,0,0.32)";
@@ -415,15 +466,34 @@ function drawUnit(ctx: CanvasRenderingContext2D, u: Unit, v: RenderView) {
   const attacking=u.state==='attack'&&!moving;
   const dir=Math.abs(Math.cos(u.angle))>Math.abs(Math.sin(u.angle)) ? (Math.cos(u.angle)>0?1:3) : (Math.sin(u.angle)>0?0:2);
   const working=!dead&&!moving&&!attacking&&u.type==='worker'&&(u.state==='build'||(u.state==='gather'&&!!u.gatherType));
-  const workRow=u.state==='build'?16:u.gatherType==='gold'?12:8;
-  const frame=dead||(!moving&&!attacking&&!working)?0:Math.floor(u.anim*(working?8:attacking?12:9))%8;
-  const img=sprite(`${u.faction}-${u.type}-atlas`);
+  const casting=!dead&&!moving&&!attacking&&!working&&u.abilityTime>0&&actions.includes('cast');
+
+  let actionName = "walk";
+  if (hasDeath) actionName = "death";
+  else if (working) actionName = u.state === "build" ? "build" : u.gatherType === "gold" ? "mine" : "chop";
+  else if (casting) actionName = "cast";
+  else if (attacking) actionName = "attack";
+  else if (moving) actionName = "walk";
+  else if (actions.includes("idle")) actionName = "idle";
+
+  const actionIdx = Math.max(0, actions.indexOf(actionName));
+  const frame = hasDeath
+    ? Math.min(7, Math.floor(u.anim * 8))
+    : dead
+    ? 0
+    : actionName === "idle"
+    ? Math.floor(v.time * 4 + u.id) % 8
+    : !moving && !attacking && !working && !casting
+    ? 0
+    : Math.floor(u.anim * (working ? 8 : attacking ? 12 : casting ? 10 : 9)) % 8;
+
+  const img=sprite(atlasName);
   ctx.imageSmoothingEnabled=false;
-  const size=(u.type==='siege'?52:u.type==='cavalry'?48:36)*(u.meals>=3?1.15:1);
-  const cell=img?img.width/8:32;
-  if(img) ctx.drawImage(img,frame*cell,(dir+(working?workRow:attacking?4:0))*cell,cell,cell,-size/2,-size+12,size,size);
-  const role=u.type==='cavalry'||u.type==='siege'||working?null:sprite('role-'+({worker:'hammer',melee:'sword',ranged:'bow',cavalry:'shield',siege:'staff'}[u.type]));
-  if(role) ctx.drawImage(role,7,-16,14,14);
+  const size=(u.type==='siege'?58:u.type==='cavalry'?54:44)*(u.meals>=3?1.15:1);
+  const cell=meta?.cell ?? (img?img.width/8:48);
+  if(img) ctx.drawImage(img,frame*cell,(actionIdx*4+dir)*cell,cell,cell,-size/2,-size+13,size,size);
+  const role=dead||u.type==='cavalry'||u.type==='siege'||working?null:sprite('role-'+({worker:'hammer',melee:'sword',ranged:'bow',cavalry:'shield',siege:'staff'}[u.type]));
+  if(role) ctx.drawImage(role,8,-18,14,14);
   ctx.fillStyle=TEAM[u.faction].light;
   ctx.fillRect(-7,10,14,3);
   if(u.hold) {ctx.strokeStyle='#a9c7ec';ctx.strokeRect(-9,8,18,7);}
@@ -640,6 +710,15 @@ function drawRelic(ctx: CanvasRenderingContext2D,v:RenderView) {
   const col=v.ritual.contested?'#ed7265':v.ritual.owner?TEAM[v.ritual.owner].light:'#c8a98c';
   ctx.strokeStyle=col;ctx.fillStyle='#3d20214a';ctx.lineWidth=2;ctx.setLineDash([8,8]);
   ctx.beginPath();ctx.arc(0,0,RELIC.radius,0,TAU);ctx.fill();ctx.stroke();ctx.setLineDash([]);
+  const brazier = sprite('prop-brazier');
+  if (brazier) {
+    ctx.imageSmoothingEnabled = false;
+    const bf = Math.floor(v.time * 7) % 4;
+    const r = RELIC.radius - 14;
+    for (const [bx, by] of [[0, -r], [r, 0], [0, r], [-r, 0]]) {
+      ctx.drawImage(brazier, bf * 32, 0, 32, 32, bx - 16, by - 20, 32, 32);
+    }
+  }
   const img=sprite('relic');if(img) {ctx.imageSmoothingEnabled=false;ctx.drawImage(img,-48,-60,96,96);}
   ctx.font='bold 12px serif';ctx.textAlign='center';ctx.fillStyle=col;ctx.fillText('THE DEAD GOD',0,48);
   ctx.font='10px sans-serif';ctx.fillText(v.ritual.contested?'CONTESTED — RITUALS PAUSED':v.ritual.owner?(v.empowered[v.ritual.owner]?'AN AWAKENED HOST HOLDS THE REMAINS':'RITUAL IN PROGRESS'):'BRING SOLDIERS TO CLAIM',0,64);

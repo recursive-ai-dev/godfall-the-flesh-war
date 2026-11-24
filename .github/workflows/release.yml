@@ -1,0 +1,45 @@
+name: Release Linux Packages
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck and test
+        run: npm run typecheck && npm test
+
+      - name: Build web bundle
+        run: npm run build
+
+      - name: Build deb, rpm, and AppImage
+        run: npx electron-builder --linux deb rpm AppImage --x64 --publish never
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*.deb
+            release/*.rpm
+            release/*.AppImage
+          generate_release_notes: true

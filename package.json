@@ -1,8 +1,12 @@
 {
   "name": "godfall-the-flesh-war",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Three-faction real-time strategy game: Godfall: The Flesh War",
+  "author": "recursive-ai-dev",
+  "license": "MIT",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -10,7 +14,31 @@
     "test": "node scripts/test.mjs",
     "typecheck": "tsc --noEmit",
     "test:battles": "node scripts/test.mjs test/simulation.ts",
-    "test:browser": "node scripts/browser-check.mjs && node scripts/mobile-check.mjs"
+    "test:browser": "node scripts/browser-check.mjs && node scripts/mobile-check.mjs",
+    "dist:linux": "npm run build && electron-builder --linux deb rpm AppImage --x64 --publish never"
+  },
+  "build": {
+    "appId": "com.recursiveaidev.godfall",
+    "productName": "Godfall: The Flesh War",
+    "executableName": "godfall-the-flesh-war",
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "linux": {
+      "category": "Game",
+      "icon": "build/icon.png",
+      "synopsis": "Three-faction RTS: Godfall: The Flesh War",
+      "target": [
+        "deb",
+        "rpm",
+        "AppImage"
+      ]
+    }
   },
   "dependencies": {
     "clsx": "2.1.1",
@@ -25,10 +53,12 @@
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.1",
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3",
-    "vite": "7.3.2",
+    "vite": "^7.3.8",
     "vite-plugin-singlefile": "2.3.0"
   }
 }
