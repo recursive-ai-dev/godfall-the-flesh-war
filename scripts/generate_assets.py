@@ -166,10 +166,10 @@ for i, (kind, extra) in enumerate([
 ]):
     tseed = 50 + i
     blob_frames = [
-        tile_gen32.generate(tseed, kind=kind, mask=m, blob=True, master_palette=MASTER_PALETTE, **extra)
+        tile_gen32.generate(tseed, kind=kind, mask=m, blob=True, alpha_edge=True, master_palette=MASTER_PALETTE, **extra)
         for m in BLOB_47_MASKS
     ]
-    atlas, metadata = make_sheet(blob_frames, cols=8, margin=0, transparent=False)
+    atlas, metadata = make_sheet(blob_frames, cols=8, margin=0, transparent=True)
     metadata['masks'] = list(BLOB_47_MASKS)
     metadata['mask_to_index'] = {str(m): idx for idx, m in enumerate(BLOB_47_MASKS)}
     bname = f'{kind}-blob47'

@@ -39,4 +39,30 @@ const quitter=new GameEngine('darkelf',42);
 quitter.surrender();
 assert.equal(quitter.outcome,'defeat');
 assert.match(quitter.hud().resultReason,/surrender/i);
-console.log('Selection commands, construction gating and surrender passed.');
+
+// Workers can repair damaged completed buildings.
+const repairGame=new GameEngine('human',42);
+const rHall=repairGame.buildings.find(b=>b.faction==='human'&&b.type==='hall')!;
+const rWorker=repairGame.units.find(u=>u.faction==='human'&&u.type==='worker')!;
+rHall.hp=rHall.maxHp-120;
+repairGame.selected=new Set([rWorker.id]);
+repairGame.commandAt(rHall.x,rHall.y);
+assert.equal(rWorker.state,'build');
+assert.equal(rWorker.buildId,rHall.id);
+for(let i=0;i<200;i++) repairGame.update(0.05,new Set(),{x:0,y:0},800,600);
+assert.equal(rHall.hp,rHall.maxHp,'worker repairs damaged hall to full hp');
+
+// Blacksmith & Mill upgrades research and apply bonuses, and gameSpeed scales simulation time.
+const techGame=new GameEngine('human',42);
+const tHall=techGame.buildings.find(b=>b.faction==='human'&&b.type==='hall')!;
+(techGame as any).makeBuilding('human','blacksmith',tHall.tileX+6,tHall.tileY,true);
+techGame.gold.human=1000;techGame.lumber.human=1000;
+assert.equal(techGame.research('forgeWeapons'),true);
+assert.ok(techGame.hud().researching?.id==='forgeWeapons');
+techGame.gameSpeed=2;
+const t0=techGame.time;
+for(let i=0;i<300;i++) techGame.update(0.05,new Set(),{x:0,y:0},800,600);
+assert.ok(Math.abs((techGame.time-t0)-30)<0.2,'2x gameSpeed advances simulation twice as fast');
+assert.equal(techGame.upgrades.human.forgeWeapons,true,'forgeWeapons completes after research timer');
+
+console.log('Selection commands, construction gating, repair, research, gameSpeed and surrender passed.');

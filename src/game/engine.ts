@@ -9,6 +9,7 @@ import {
   START_GOLD,
   START_LUMBER,
   UNIT,
+  UPGRADE,
   buildingName,
   unitName,
 } from "./data";
@@ -23,6 +24,7 @@ import {
   type Building,
   type BuildingClass,
   type Faction,
+  type Floater,
   type GoldMine,
   type HudState,
   type Message,
@@ -31,6 +33,7 @@ import {
   type Tree,
   type Unit,
   type UnitClass,
+  type UpgradeId,
 } from "./types";
 import type { Cam, RenderView } from "./renderer";
 
@@ -43,8 +46,12 @@ function hypot(ax: number, ay: number, bx: number, by: number) {
 }
 
 function edgeDistance(u: Unit, b: Building | GoldMine) {
-  return Math.hypot(Math.max(0, Math.abs(u.x - b.x) - b.tw * TILE / 2),
-    Math.max(0, Math.abs(u.y - b.y) - b.th * TILE / 2));
+  const hw = (b.tw * TILE) / 2;
+  const hh = (b.th * TILE) / 2;
+  const r = 6;
+  const qx = Math.max(0, Math.abs(u.x - b.x) - (hw - r));
+  const qy = Math.max(0, Math.abs(u.y - b.y) - (hh - r));
+  return Math.max(0, Math.hypot(qx, qy) - r);
 }
 
 function idx(x: number, y: number) {
@@ -63,6 +70,19 @@ export class GameEngine {
   buildings: Building[] = [];
   projectiles: Projectile[] = [];
   particles: Particle[] = [];
+  floaters: Floater[] = [];
+  pings: { x: number; y: number; color: string; t: number }[] = [];
+  gameSpeed = 1;
+  upgrades: Record<Faction, Record<UpgradeId, boolean>> = {
+    human: { forgeWeapons: false, ironArmor: false, keenAxes: false },
+    darkelf: { forgeWeapons: false, ironArmor: false, keenAxes: false },
+    corrupted: { forgeWeapons: false, ironArmor: false, keenAxes: false },
+  };
+  researching: Record<Faction, { id: UpgradeId; t: number; max: number } | null> = {
+    human: null,
+    darkelf: null,
+    corrupted: null,
+  };
   vis: Uint8Array;
   explored: Uint8Array;
   gold: Record<Faction, number> = { human: START_GOLD, darkelf: START_GOLD, corrupted: START_GOLD };
@@ -132,8 +152,49 @@ export class GameEngine {
       this.burst(u.x,u.y,TEAM[u.faction].light,8);
       used++;
     }
-    if(used && units[0]?.faction===this.player) this.notify(`${DOCTRINE[this.player].ability}: ${used} soldiers.`);
+    if(used && units[0]?.faction===this.player) {
+      audio.ability(this.player);
+      this.notify(`${DOCTRINE[this.player].ability}: ${used} soldiers.`);
+    }
     return used;
+  }
+
+  private spawnFloater(x: number, y: number, text: string, color: string) {
+    if (this.floaters.length > 48) this.floaters.shift();
+    this.floaters.push({ x, y, vy: -22, text, color, life: 1.15 });
+  }
+
+  private addPing(x: number, y: number, color: string, duration = 2.6) {
+    if (this.pings.length > 8) this.pings.shift();
+    this.pings.push({ x, y, color, t: duration });
+  }
+
+  research(id: UpgradeId, f: Faction = this.player): boolean {
+    if (this.outcome !== "playing" && f === this.player) return false;
+    const up = UPGRADE[id];
+    if (this.upgrades[f][id] || this.researching[f]) {
+      if (f === this.player) audio.error();
+      return false;
+    }
+    if (!this.hasBuilding(f, up.building)) {
+      if (f === this.player) {
+        this.notify(`Requires a completed ${buildingName(up.building, f)}.`);
+        audio.error();
+      }
+      return false;
+    }
+    if (this.gold[f] < up.gold || this.lumber[f] < up.lumber) {
+      if (f === this.player) {
+        this.notify("Not enough gold or lumber.");
+        audio.error();
+      }
+      return false;
+    }
+    this.gold[f] -= up.gold;
+    this.lumber[f] -= up.lumber;
+    this.researching[f] = { id, t: 0, max: up.time };
+    if (f === this.player) audio.click();
+    return true;
   }
 
   private updateRitual(dt: number) {
@@ -149,6 +210,8 @@ export class GameEngine {
         for(const u of this.units.filter(u=>u.faction===f&&u.state!=='dead')) {u.hp*=2;u.maxHp*=2;}
         for(const b of this.buildings.filter(b=>b.faction===f)) {b.hp*=2;b.maxHp*=2;}
         this.notify(`${TEAM[f].name} has awakened divine power! Complete your ritual to match them.`);
+        this.spawnFloater(RELIC.x, RELIC.y - 24, "AWAKENED!", TEAM[f].light);
+        this.addPing(RELIC.x, RELIC.y, TEAM[f].light, 3.5);
         audio.horn();
       }
     }
@@ -166,6 +229,7 @@ export class GameEngine {
         corpse.life=0;u.meals++;u.hp=Math.min(u.maxHp,u.hp+30);this.stats[u.faction].feasts++;
         if(u.meals===3) {u.maxHp*=1.25;u.hp=Math.min(u.maxHp,u.hp+25);}
         this.burst(u.x,u.y,'#e55252',8);
+        if(u.faction===this.player) this.spawnFloater(u.x, u.y - 16, u.meals === 3 ? "MUTATED!" : "+30 HP", u.meals === 3 ? "#ff5252" : "#ff9a8a");
       }
       if(u.abilityTime>0) {
         const target=this.findEnemyNear(u.x,u.y,220,u.faction);
@@ -179,7 +243,7 @@ export class GameEngine {
   }
 
   private damageMultiplier(u: Unit) {
-    return (this.empowered[u.faction]?1.8:1)*(u.meals>=3?1.25:1)*(this.officerNear(u)?1.15:1);
+    return (this.empowered[u.faction]?1.8:1)*(u.meals>=3?1.25:1)*(this.officerNear(u)?1.15:1)*(this.upgrades[u.faction].forgeWeapons?1.15:1);
   }
 
   private nextOrder(u: Unit) {
@@ -643,12 +707,11 @@ export class GameEngine {
   }
 
   private hitBuilding(b: Building, wx: number, wy: number) {
-    return (
-      wx >= b.tileX * TILE &&
-      wx <= (b.tileX + b.tw) * TILE &&
-      wy >= b.tileY * TILE &&
-      wy <= (b.tileY + b.th) * TILE
-    );
+    const rx = (b.tw * TILE) / 2;
+    const ry = (b.th * TILE) / 2;
+    const dx = Math.abs(wx - b.x) / rx;
+    const dy = Math.abs(wy - b.y) / ry;
+    return dx <= 1 && dy <= 1 && Math.pow(dx, 2.6) + Math.pow(dy, 2.6) <= 1.05;
   }
 
   commandAt(wx: number, wy: number, queued = false, attack = this.attackMoveMode) {
@@ -717,7 +780,7 @@ export class GameEngine {
 
   private pickFriendlySite(wx: number, wy: number, f: Faction) {
     for (const b of this.buildings) {
-      if (b.faction !== f || b.complete) continue;
+      if (b.faction !== f || (b.complete && b.hp >= b.maxHp)) continue;
       if (this.hitBuilding(b, wx, wy)) return b;
     }
     return null;
@@ -889,8 +952,7 @@ export class GameEngine {
 
   update(dt: number, keys: Set<string>, edge: { x: number; y: number }, vw: number, vh: number) {
     if (this.outcome !== "playing") return;
-    dt = Math.min(dt, 0.05);
-    this.time += dt;
+    const rawDt = Math.min(dt, 0.05);
     this.viewW = vw;
     this.viewH = vh;
     // Frame the player's hall at the real viewport size (phones included). The HUD
@@ -899,10 +961,32 @@ export class GameEngine {
       this.framed = `${vw}x${vh}`;
       this.centerOnHall();
     }
-    this.pan(dt, keys, edge);
+    this.pan(rawDt, keys, edge);
 
-    for (const m of this.messages) m.t -= dt;
+    dt = rawDt * this.gameSpeed;
+    this.time += dt;
+
+    for (const m of this.messages) m.t -= rawDt;
     this.messages = this.messages.filter((m) => m.t > 0);
+    for (const p of this.pings) p.t -= rawDt;
+    this.pings = this.pings.filter((p) => p.t > 0);
+    for (const f of this.floaters) { f.y += f.vy * dt; f.life -= dt; }
+    this.floaters = this.floaters.filter((f) => f.life > 0);
+
+    for (const f of FACTIONS) {
+      const res = this.researching[f];
+      if (!res) continue;
+      if (!this.hasBuilding(f, UPGRADE[res.id].building)) { this.researching[f] = null; continue; }
+      res.t += dt;
+      if (res.t >= res.max) {
+        this.upgrades[f][res.id] = true;
+        this.researching[f] = null;
+        if (f === this.player) {
+          audio.complete();
+          this.notify(`${UPGRADE[res.id].name} complete (${UPGRADE[res.id].desc}).`);
+        }
+      }
+    }
 
     this.updateVision();
 
@@ -1078,7 +1162,7 @@ export class GameEngine {
         return;
       }
       u.path = [];
-      u.gatherTimer += dt;
+      u.gatherTimer += dt * (this.upgrades[u.faction].keenAxes ? 1.25 : 1);
       if (u.gatherTimer >= GOLD_TIME) {
         u.gatherTimer = 0;
         const amt = Math.min(GATHER_GOLD, mine.gold);
@@ -1104,7 +1188,7 @@ export class GameEngine {
       }
       u.path = [];
       u.angle = Math.atan2(tree.y - u.y, tree.x - u.x);
-      u.gatherTimer += dt;
+      u.gatherTimer += dt * (this.upgrades[u.faction].keenAxes ? 1.25 : 1);
       if (u.gatherTimer >= LUMBER_TIME) {
         u.gatherTimer = 0;
         const amt = Math.min(GATHER_LUMBER, tree.lumber);
@@ -1127,8 +1211,15 @@ export class GameEngine {
       this.followPath(u, dt);
       return;
     }
-    if (u.gatherType === "gold") {this.gold[u.faction] += u.carried;this.stats[u.faction].gold+=u.carried;}
-    else {this.lumber[u.faction] += u.carried;this.stats[u.faction].lumber+=u.carried;}
+    if (u.gatherType === "gold") {
+      this.gold[u.faction] += u.carried;
+      this.stats[u.faction].gold += u.carried;
+      if (u.faction === this.player) this.spawnFloater(u.x, u.y - 16, `+${u.carried}g`, "#f0cf5a");
+    } else {
+      this.lumber[u.faction] += u.carried;
+      this.stats[u.faction].lumber += u.carried;
+      if (u.faction === this.player) this.spawnFloater(u.x, u.y - 16, `+${u.carried}w`, "#c89a64");
+    }
     u.carried = 0;
     if (u.faction === this.player) audio.gather();
     const exhausted = u.gatherType==='gold' ? !this.mines.some(m=>m.id===u.nodeId&&m.gold>0) : !this.trees.some(t=>t.id===u.nodeId&&t.lumber>0);
@@ -1146,7 +1237,7 @@ export class GameEngine {
 
   private doBuild(u: Unit, dt: number) {
     const b = this.buildings.find((x) => x.id === u.buildId);
-    if (!b || b.complete) {
+    if (!b || (b.complete && b.hp >= b.maxHp)) {
       u.state = "idle";
       u.buildId = null;
       return;
@@ -1157,6 +1248,16 @@ export class GameEngine {
       return;
     }
     u.path = [];
+    if (b.complete) {
+      b.hp = Math.min(b.maxHp, b.hp + 24 * dt);
+      if (b.hp >= b.maxHp) {
+        b.hp = b.maxHp;
+        u.state = "idle";
+        u.buildId = null;
+        if (b.faction === this.player) this.spawnFloater(b.x, b.y - 18, "REPAIRED", "#8fd16a");
+      }
+      return;
+    }
     const st = BUILDING[b.type];
     b.progress += dt / st.time;
     b.hp = Math.min(b.maxHp, 40 + (b.maxHp - 40) * b.progress);
@@ -1343,9 +1444,10 @@ export class GameEngine {
     if(t.kind==='unit') {
       if(t.faction==='human' && t.abilityTime>0) dmg*=.5;
       if(this.officerNear(t)) dmg*=.85;
+      if(this.upgrades[t.faction].ironArmor) dmg*=.85;
     }
     if(t.faction===this.player && this.time-this.lastWarning>10) {
-      this.lastWarning=this.time;this.notify('Your forces are under attack!');audio.horn();
+      this.lastWarning=this.time;this.notify('Your forces are under attack!');this.addPing(t.x, t.y, '#ff5252', 3);audio.horn();
     }
     t.hp -= dmg;
     if (t.hp <= 0) {
@@ -1518,6 +1620,8 @@ export class GameEngine {
     }
     if (!this.buildings.some((b) => b.faction === f && b.type === "barracks") && this.time > 18) {
       this.aiTryBuild(f, "barracks", hall);
+    } else if (this.difficulty !== "easy" && barracks.length < 2 && this.time > 85 && this.gold[f] > 320 && this.lumber[f] > 200) {
+      this.aiTryBuild(f, "barracks", hall);
     }
     if (!this.buildings.some((b) => b.faction === f && b.type === "mill") && lumberers.length && this.time > 25) {
       this.aiTryBuild(f, "mill", hall);
@@ -1526,6 +1630,12 @@ export class GameEngine {
     if (this.time > 95 && !this.hasBuilding(f, "stables")) this.aiTryBuild(f, "stables", hall);
     if (this.time > 110 && this.buildings.filter((b) => b.faction === f && b.type === "tower").length < 2) {
       this.aiTryBuild(f, "tower", hall);
+    }
+
+    if (!this.researching[f] && this.difficulty !== "easy") {
+      if (this.hasBuilding(f, "blacksmith") && !this.upgrades[f].forgeWeapons && this.gold[f] > 280) this.research("forgeWeapons", f);
+      else if (this.hasBuilding(f, "blacksmith") && !this.upgrades[f].ironArmor && this.gold[f] > 300) this.research("ironArmor", f);
+      else if (this.hasBuilding(f, "mill") && !this.upgrades[f].keenAxes && this.gold[f] > 240) this.research("keenAxes", f);
     }
 
     const nearbyGold=this.mines.some(m=>m.gold>150 && hypot(m.x,m.y,hall.x,hall.y)<480);
@@ -1538,7 +1648,8 @@ export class GameEngine {
       this.enqueue(hall, "worker", false);
     }
 
-    if (barracks[0] && barracks[0].queue.length < 3 && foodGap >= 2) {
+    for (const bx of barracks) {
+      if (bx.queue.length >= 3 || foodGap < 2) continue;
       const nMelee = army.filter((a) => a.type === "melee").length;
       const nRange = army.filter((a) => a.type === "ranged").length;
       let t: UnitClass = "melee";
@@ -1547,7 +1658,7 @@ export class GameEngine {
         t = "cavalry";
       if (this.hasBuilding(f, "blacksmith") && army.filter((a) => a.type === "siege").length < 2 && this.time > 130)
         t = "siege";
-      this.enqueue(barracks[0], t, false);
+      this.enqueue(bx, t, false);
     }
 
     // Fall back with badly injured soldiers; recover slowly near a friendly hall.
@@ -1626,6 +1737,8 @@ export class GameEngine {
       buildings: this.buildings,
       projectiles: this.projectiles,
       particles: this.particles,
+      floaters: this.floaters,
+      pings: this.pings,
       vis: this.vis,
       explored: this.explored,
       player: this.player,
@@ -1717,6 +1830,15 @@ export class GameEngine {
       abilityReady: this.selectedUnits().filter(u=>u.type!=='worker'&&u.abilityCd<=0).length,
       abilityCooldown: Math.ceil(Math.min(...this.selectedUnits().filter(u=>u.type!=='worker').map(u=>u.abilityCd), 999)),
       holding: this.selectedUnits().some(u=>u.hold), queuedOrders: Math.max(0,...this.selectedUnits().map(u=>u.orders.length)),
+      upgrades: { ...this.upgrades[this.player] },
+      researching: this.researching[this.player] ? { ...this.researching[this.player]! } : null,
+      groups: Object.fromEntries(
+        Object.entries(this.groups).map(([k, ids]) => [
+          k,
+          ids.filter((id) => this.units.some((u) => u.id === id && u.state !== "dead") || this.buildings.some((b) => b.id === id)).length,
+        ]),
+      ),
+      gameSpeed: this.gameSpeed,
       gold: this.gold[this.player] | 0,
       lumber: this.lumber[this.player] | 0,
       food: this.foodUsed(this.player),

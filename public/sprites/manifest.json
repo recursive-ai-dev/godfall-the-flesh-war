@@ -993,7 +993,7 @@
         "kind": "hall",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "dcc85e370f570d02c3504cad96f62a55"
+      "pixel_hash": "39a89fa8e7439bb1dbf32066d04de508"
     },
     {
       "file": "human-farm.png",
@@ -1008,7 +1008,7 @@
         "kind": "farm",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "3cacd22ef361ef79a7a8f4811a50a2ea"
+      "pixel_hash": "0b35835a2a19913800216a7e3b31f2c8"
     },
     {
       "file": "human-barracks.png",
@@ -1023,7 +1023,7 @@
         "kind": "barracks",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "7a916eae24378ce6ce7efc5f99ff52e6"
+      "pixel_hash": "7469342cfaaa1d885943e271e301c43d"
     },
     {
       "file": "human-mill.png",
@@ -1038,7 +1038,7 @@
         "kind": "mill",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "94fcd38017c3ff6c8cfa4a2f8ac7c648"
+      "pixel_hash": "a93f29548b2bcaca81de27afe39a0c15"
     },
     {
       "file": "human-blacksmith.png",
@@ -1053,7 +1053,7 @@
         "kind": "blacksmith",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "1ea434c8eb4e68a1370aec07d7a327bf"
+      "pixel_hash": "ce9009470958c057c0ebffdfbca046f3"
     },
     {
       "file": "human-stables.png",
@@ -1068,7 +1068,7 @@
         "kind": "stables",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "4d0a85b25ce8be0596489bd36f8e58dd"
+      "pixel_hash": "663fc753328bd6386b857b6354982584"
     },
     {
       "file": "human-tower.png",
@@ -1083,7 +1083,7 @@
         "kind": "tower",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "676611ff595d5c2773222153e91ef138"
+      "pixel_hash": "b355d58296f964e3a03de742119b8261"
     },
     {
       "file": "darkelf-worker-atlas.png",
@@ -2076,7 +2076,7 @@
         "kind": "hall",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "54fcf06836d65d7e4c948d066ab7c121"
+      "pixel_hash": "a6e4e60eebbb9d8b9daad52c2dfc33a8"
     },
     {
       "file": "darkelf-farm.png",
@@ -2091,7 +2091,7 @@
         "kind": "farm",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "573a2407ab04e1287a26209820d6c6a3"
+      "pixel_hash": "dcb2f6c5c5089307a1bf716263942047"
     },
     {
       "file": "darkelf-barracks.png",
@@ -2106,7 +2106,7 @@
         "kind": "barracks",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "e65cbd2249b53e0e6b8cfb8f90016510"
+      "pixel_hash": "71973c5c8c864b0500088a408ecafcfb"
     },
     {
       "file": "darkelf-mill.png",
@@ -2121,7 +2121,7 @@
         "kind": "mill",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "8d737449f59ed229c83ea2eca8610713"
+      "pixel_hash": "5dbe4a46825e5c5cf42cc7f727e61d07"
     },
     {
       "file": "darkelf-blacksmith.png",
@@ -2136,7 +2136,7 @@
         "kind": "blacksmith",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "a8e5559df9a252ba27779b3e4576278f"
+      "pixel_hash": "638645568a3a08b0637ace570a5f9b2e"
     },
     {
       "file": "darkelf-stables.png",
@@ -2151,7 +2151,7 @@
         "kind": "stables",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "4bc82ca75a2dbdac14de341b573986e4"
+      "pixel_hash": "d48e4403cf5b575c6c71ef3eb5487227"
     },
     {
       "file": "darkelf-tower.png",
@@ -2166,7 +2166,7 @@
         "kind": "tower",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "0b0a7f8c58007aadb0c88675f6083f85"
+      "pixel_hash": "ab30f1daacb02d2183d57e329753b4ad"
     },
     {
       "file": "corrupted-worker-atlas.png",
@@ -3159,7 +3159,7 @@
         "kind": "hall",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "c5350b1761ef7f7015f00d2961570343"
+      "pixel_hash": "5b925a16596a0ec3c0eea45b1b7bccd9"
     },
     {
       "file": "corrupted-farm.png",
@@ -3174,7 +3174,7 @@
         "kind": "farm",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "958b8df09cd260ce7ad2d416fad768b2"
+      "pixel_hash": "316bfdb06c0f91e2ca7ed81f3dd9c6f7"
     },
     {
       "file": "corrupted-barracks.png",
@@ -3189,7 +3189,7 @@
         "kind": "barracks",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "cce7e9b4905c7032eb9bf15719186cf3"
+      "pixel_hash": "d97ab3fd4f0bf65fc999fa8fa172bf74"
     },
     {
       "file": "corrupted-mill.png",
@@ -3204,7 +3204,7 @@
         "kind": "mill",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "e080fe747d58610fa6316af7dec184bb"
+      "pixel_hash": "202882a65a0a7a73c10919e2aa867936"
     },
     {
       "file": "corrupted-blacksmith.png",
@@ -3219,7 +3219,7 @@
         "kind": "blacksmith",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "f7e8d4eca1dfca63537aab26640f2fb2"
+      "pixel_hash": "17d67386d6ddf38a53253aee7aad7238"
     },
     {
       "file": "corrupted-stables.png",
@@ -3234,7 +3234,7 @@
         "kind": "stables",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "a4ea6d1b013d90b4491084a8ecaec183"
+      "pixel_hash": "3b7ac23c56310be35c3d589fd08394bb"
     },
     {
       "file": "corrupted-tower.png",
@@ -3249,7 +3249,7 @@
         "kind": "tower",
         "master_palette": "endesga32"
       },
-      "pixel_hash": "4eebd5ddef8cf9656e0ce4b8a4b97b74"
+      "pixel_hash": "39d3d8d707e8b9c027c4f64a16f620f8"
     },
     {
       "file": "grass.png",

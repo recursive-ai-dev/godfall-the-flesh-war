@@ -1,7 +1,7 @@
 import { DOCTRINE } from '../game/warfare';
 import { selectionCommands } from '../game/commands';
-import { BUILDING, UNIT, buildingName, unitName } from "../game/data";
-import type { BuildingClass, Faction, HudState, UnitClass } from "../game/types";
+import { BUILDING, UNIT, UPGRADE, buildingName, unitName } from "../game/data";
+import type { BuildingClass, Faction, HudState, UnitClass, UpgradeId } from "../game/types";
 import { TEAM } from "../game/types";
 import type { PointerEvent, ReactNode, RefObject } from "react";
 import { IMG, spriteUrl } from "../media";
@@ -30,7 +30,12 @@ export function HUD({
   onAbility,
   onAttackMove,
   onCancelQueue,
+  onResearch,
+  onRecallGroup,
+  onCycleSpeed,
   onMinimapDown,
+  onMinimapMove,
+  onMinimapUp,
   onMute,
   onMenu,
   children,
@@ -48,7 +53,12 @@ export function HUD({
   onAbility: () => void;
   onAttackMove: () => void;
   onCancelQueue: (i: number) => void;
+  onResearch: (id: UpgradeId) => void;
+  onRecallGroup: (n: number) => void;
+  onCycleSpeed: () => void;
   onMinimapDown: (e: PointerEvent) => void;
+  onMinimapMove: (e: PointerEvent) => void;
+  onMinimapUp: () => void;
   onMute: () => void;
   onMenu: () => void;
   children: ReactNode;
@@ -98,6 +108,13 @@ export function HUD({
             {mm}:{ss}
           </span>
           <button
+            title="Cycle simulation speed"
+            className="border border-amber-700/50 bg-black/30 px-2 py-1 text-[11px] tracking-widest text-amber-200"
+            onClick={onCycleSpeed}
+          >
+            {hud.gameSpeed}×
+          </button>
+          <button
             className="border border-amber-700/50 bg-black/30 px-2 py-1 text-[11px] tracking-widest text-amber-200"
             onClick={onMute}
           >
@@ -129,6 +146,9 @@ export function HUD({
           height={180}
           className="hud-mini h-[180px] w-[180px] shrink-0 cursor-pointer"
           onPointerDown={onMinimapDown}
+          onPointerMove={onMinimapMove}
+          onPointerUp={onMinimapUp}
+          onPointerCancel={onMinimapUp}
           onContextMenu={(e) => e.preventDefault()}
         />
 
@@ -165,6 +185,17 @@ export function HUD({
                   </div>
                 )}
                 {own && sel.unitType && sel.unitType !== "worker" && <p className="mt-2 text-[11px] leading-relaxed text-stone-300">{DOCTRINE[faction].description}</p>}
+                {own && hud.researching && sel.kind === "building" && UPGRADE[hud.researching.id].building === sel.buildingType && (
+                  <div className="mt-2">
+                    <div className="mb-1 flex justify-between text-[11px] text-sky-200">
+                      <span>Researching {UPGRADE[hud.researching.id].name}…</span>
+                      <span>{Math.round((hud.researching.t / hud.researching.max) * 100)}%</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-black/50">
+                      <div className="h-full bg-sky-400" style={{ width: `${(hud.researching.t / hud.researching.max) * 100}%` }} />
+                    </div>
+                  </div>
+                )}
                 {sel.kind === "building" && !sel.complete && (
                   <p className="mt-2 text-xs text-amber-200">
                     Constructing… {Math.round(sel.progress * 100)}%
@@ -196,8 +227,22 @@ export function HUD({
               <div className="text-sm text-stone-400">
                 <p className="font-cinzel text-amber-200/80">No selection</p>
                 <p className="mt-2 text-xs leading-relaxed">
-                  Select workers to gather. Build a barracks and send soldiers to the central remains. Q: attack-move · X: hold · E: ability · R: remains.
+                  Select workers to gather or repair. Build a barracks and send soldiers to the central remains. Q: attack-move · X: hold · E: ability · R: remains.
                 </p>
+              </div>
+            )}
+            {Object.entries(hud.groups).some(([, n]) => n > 0) && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {Object.entries(hud.groups).filter(([, n]) => n > 0).map(([k, n]) => (
+                  <button
+                    key={k}
+                    onClick={() => onRecallGroup(Number(k))}
+                    title={`Recall group ${k} (${n})`}
+                    className="border border-amber-700/50 bg-black/40 px-1.5 py-0.5 text-[10px] text-amber-200 hover:border-amber-400"
+                  >
+                    [{k}] ×{n}
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -270,6 +315,30 @@ export function HUD({
                 locked={!!building || !hud.hasBlacksmith}
                 lock={building ?? "Need Blacksmith"}
               />
+            </>
+          )}
+          {own && sel?.kind === "building" && sel.complete && (sel.buildingType === "blacksmith" || sel.buildingType === "mill") && (
+            <>
+              {(Object.keys(UPGRADE) as UpgradeId[])
+                .filter((id) => UPGRADE[id].building === sel.buildingType)
+                .map((id) => {
+                  const up = UPGRADE[id];
+                  const done = hud.upgrades[id];
+                  const busy = !!hud.researching;
+                  const poor = hud.gold < up.gold || hud.lumber < up.lumber;
+                  return (
+                    <Cmd
+                      key={id}
+                      label={done ? `${up.name} ✓` : up.name}
+                      cost={done ? up.desc : `${up.gold}g ${up.lumber}w`}
+                      disabled={done || busy || poor}
+                      active={hud.researching?.id === id}
+                      onClick={() => onResearch(id)}
+                    >
+                      <span>{id === "forgeWeapons" ? "⚔" : id === "ironArmor" ? "🛡" : "⚒"}</span>
+                    </Cmd>
+                  );
+                })}
             </>
           )}
           {cmds.military && (

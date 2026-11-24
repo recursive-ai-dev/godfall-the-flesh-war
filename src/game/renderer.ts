@@ -11,6 +11,7 @@ import {
   type BuildingClass,
   type Decoration,
   type Faction,
+  type Floater,
   type GoldMine,
   type Particle,
   type Projectile,
@@ -38,6 +39,8 @@ export interface RenderView {
   buildings: Building[];
   projectiles: Projectile[];
   particles: Particle[];
+  floaters: Floater[];
+  pings: { x: number; y: number; color: string; t: number }[];
   vis: Uint8Array;
   explored: Uint8Array;
   player: Faction;
@@ -156,6 +159,7 @@ export function renderWorld(
   }
 
   drawFog(ctx, v, x0, y0, x1, y1);
+  for (const f of v.floaters) drawFloater(ctx, f);
 
   if (v.ghost && v.buildMode) drawGhost(ctx, v.buildMode, v.ghost, v.player);
   if (v.box) {
@@ -205,6 +209,11 @@ function canonicalBlobMask(
   return m;
 }
 
+const terrainCache = new WeakMap<
+  Uint8Array,
+  { canvas: HTMLCanvasElement; tctx: CanvasRenderingContext2D; drawn: Uint8Array }
+>();
+
 function drawTerrain(
   ctx: CanvasRenderingContext2D,
   v: RenderView,
@@ -213,19 +222,33 @@ function drawTerrain(
   x1: number,
   y1: number,
 ) {
-  ctx.imageSmoothingEnabled = false;
+  let cache = typeof document !== "undefined" ? terrainCache.get(v.terrain) : undefined;
+  if (!cache && typeof document !== "undefined") {
+    const canvas = document.createElement("canvas");
+    canvas.width = MAP_W * TILE;
+    canvas.height = MAP_H * TILE;
+    const tctx = canvas.getContext("2d");
+    if (tctx) {
+      cache = { canvas, tctx, drawn: new Uint8Array(MAP_W * MAP_H) };
+      terrainCache.set(v.terrain, cache);
+    }
+  }
+  const targetCtx = cache ? cache.tctx : ctx;
+  targetCtx.imageSmoothingEnabled = false;
   for (let y = y0; y < y1; y++) {
     for (let x = x0; x < x1; x++) {
       const i = y * MAP_W + x;
       if (!v.explored[i]) continue;
+      if (cache && cache.drawn[i]) continue;
       const t = v.terrain[i];
       const px = x * TILE;
       const py = y * TILE;
       const grassVariant = ((x * 73856093) ^ (y * 19349663)) & 3;
       const grassImg = sprite(`grass-${grassVariant}`) ?? sprite("grass");
-      if (grassImg) ctx.drawImage(grassImg, px, py, TILE, TILE);
-      else { ctx.fillStyle = "#26332a"; ctx.fillRect(px, py, TILE, TILE); }
+      if (grassImg) targetCtx.drawImage(grassImg, px, py, TILE, TILE);
+      else { targetCtx.fillStyle = "#26332a"; targetCtx.fillRect(px, py, TILE, TILE); }
 
+      let drewBlob = false;
       const blobKind = BLOB_KIND[t];
       if (blobKind) {
         const atlas = sprite(`${blobKind}-blob47`);
@@ -234,16 +257,28 @@ function drawTerrain(
           const idx = blobTileIndex(blobKind, mask);
           const col = idx & 7;
           const row = idx >> 3;
-          ctx.drawImage(atlas, col * 32, row * 32, 32, 32, px, py, TILE, TILE);
-          continue;
+          targetCtx.drawImage(atlas, col * 32, row * 32, 32, 32, px, py, TILE, TILE);
+          drewBlob = true;
         }
       }
-      if (t !== TERRAIN.GRASS) {
+      if (!drewBlob && t !== TERRAIN.GRASS) {
         const name = ["grass", "dirt", "water", "moss", "sand", "stone"][t];
         const img = sprite(name);
-        if (img) ctx.drawImage(img, px, py, TILE, TILE);
+        if (img) targetCtx.drawImage(img, px, py, TILE, TILE);
+        else if (cache) continue;
+      }
+      if (cache && grassImg && (!blobKind || drewBlob)) {
+        cache.drawn[i] = 1;
       }
     }
+  }
+  if (cache) {
+    const sx = x0 * TILE;
+    const sy = y0 * TILE;
+    const sw = Math.max(1, (x1 - x0) * TILE);
+    const sh = Math.max(1, (y1 - y0) * TILE);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(cache.canvas, sx, sy, sw, sh, sx, sy, sw, sh);
   }
 }
 
@@ -356,8 +391,10 @@ function drawBuilding(ctx: CanvasRenderingContext2D, b: Building, v: RenderView)
   const selected = v.selected.has(b.id);
   if (selected) {
     ctx.strokeStyle = "rgba(255, 230, 120, 0.9)";
-    ctx.lineWidth = 1.6;
-    ctx.strokeRect(-b.tw * 16 + 2, -b.th * 16 + 2, b.tw * 32 - 4, b.th * 32 - 4);
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.ellipse(0, b.th * 8, b.tw * 15, b.th * 9, 0, 0, TAU);
+    ctx.stroke();
   }
 
   ctx.fillStyle = "rgba(0,0,0,0.32)";
@@ -401,7 +438,9 @@ function drawBuildingSprite(ctx: CanvasRenderingContext2D, b: Building) {
   ctx.imageSmoothingEnabled = false;
   if (img) ctx.drawImage(img, -b.tw * 16, -b.th * 16, b.tw * 32, b.th * 32);
   ctx.fillStyle = TEAM[b.faction].primary;
-  ctx.fillRect(-b.tw * 12, b.th * 12, b.tw * 24, 3);
+  ctx.beginPath();
+  ctx.ellipse(0, b.th * 12.5, b.tw * 10, 2.2, 0, 0, TAU);
+  ctx.fill();
   ctx.font = "9px sans-serif";
   ctx.textAlign = "center";
   ctx.fillStyle = "#eee5d4";
@@ -411,14 +450,14 @@ function drawBuildingSprite(ctx: CanvasRenderingContext2D, b: Building) {
 function drawScaffold(ctx: CanvasRenderingContext2D, b: Building) {
   ctx.strokeStyle = "rgba(160,120,60,0.85)";
   ctx.lineWidth = 2;
-  const w = b.tw * 16;
-  const h = b.th * 16;
-  ctx.strokeRect(-w + 6, -h + 6, w * 2 - 12, h * 2 - 12);
+  const w = b.tw * 14;
+  const h = b.th * 14;
   ctx.beginPath();
-  ctx.moveTo(-w + 6, -h + 6);
-  ctx.lineTo(w - 6, h - 6);
-  ctx.moveTo(w - 6, -h + 6);
-  ctx.lineTo(-w + 6, h - 6);
+  ctx.roundRect(-w + 4, -h + 4, w * 2 - 8, h * 2 - 8, 8);
+  ctx.moveTo(-w + 8, -h + 8);
+  ctx.lineTo(w - 8, h - 8);
+  ctx.moveTo(w - 8, -h + 8);
+  ctx.lineTo(-w + 8, h - 8);
   ctx.stroke();
 }
 
@@ -557,6 +596,19 @@ function drawParticle(ctx: CanvasRenderingContext2D, p: Particle) {
   ctx.globalAlpha = 1;
 }
 
+function drawFloater(ctx: CanvasRenderingContext2D, f: Floater) {
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, f.life / 0.45));
+  ctx.font = "bold 11px sans-serif";
+  ctx.textAlign = "center";
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = "rgba(0,0,0,0.85)";
+  ctx.strokeText(f.text, f.x, f.y);
+  ctx.fillStyle = f.color;
+  ctx.fillText(f.text, f.x, f.y);
+  ctx.restore();
+}
+
 function drawHpBar(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -590,8 +642,23 @@ function drawFog(
         ctx.fillStyle = "#05080a";
         ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
       } else if (v.vis[i] !== 2) {
+        const nVis = y > 0 && v.vis[(y - 1) * MAP_W + x] === 2;
+        const sVis = y < MAP_H - 1 && v.vis[(y + 1) * MAP_W + x] === 2;
+        const wVis = x > 0 && v.vis[y * MAP_W + x - 1] === 2;
+        const eVis = x < MAP_W - 1 && v.vis[y * MAP_W + x + 1] === 2;
         ctx.fillStyle = "rgba(0,0,0,0.48)";
-        ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+        if (nVis || sVis || wVis || eVis) {
+          ctx.beginPath();
+          ctx.roundRect(x * TILE, y * TILE, TILE, TILE, [
+            nVis && wVis ? 12 : 0,
+            nVis && eVis ? 12 : 0,
+            sVis && eVis ? 12 : 0,
+            sVis && wVis ? 12 : 0,
+          ]);
+          ctx.fill();
+        } else {
+          ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+        }
       }
     }
   }
@@ -609,8 +676,10 @@ function drawGhost(
   ctx.fillStyle = ghost.ok ? "rgba(80,200,80,0.35)" : "rgba(200,40,40,0.4)";
   ctx.strokeStyle = ghost.ok ? "#6f6" : "#f66";
   ctx.lineWidth = 2;
-  ctx.fillRect(ghost.tx * TILE, ghost.ty * TILE, st.tw * TILE, st.th * TILE);
-  ctx.strokeRect(ghost.tx * TILE, ghost.ty * TILE, st.tw * TILE, st.th * TILE);
+  ctx.beginPath();
+  ctx.roundRect(ghost.tx * TILE, ghost.ty * TILE, st.tw * TILE, st.th * TILE, 12);
+  ctx.fill();
+  ctx.stroke();
   ctx.translate((ghost.tx + st.tw / 2) * TILE, (ghost.ty + st.th / 2) * TILE);
   const fake = {
     id: 0,
@@ -692,6 +761,17 @@ export function renderMinimap(
   }
   ctx.fillStyle=v.ritual.contested?'#ff775f':v.ritual.owner?TEAM[v.ritual.owner].light:'#f3d8a1';
   ctx.beginPath();ctx.arc(RELIC.x/TILE*sx,RELIC.y/TILE*sy,5,0,TAU);ctx.fill();
+  for (const p of v.pings) {
+    const pulse = 4 + ((v.time * 24) % 14);
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, p.t / 0.8);
+    ctx.strokeStyle = p.color;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc((p.x / TILE) * sx, (p.y / TILE) * sy, pulse, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
   ctx.strokeStyle = "#f2e6a0";
   ctx.lineWidth = 1;
   ctx.strokeRect(

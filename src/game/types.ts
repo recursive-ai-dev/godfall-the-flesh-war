@@ -1,5 +1,6 @@
 import type { BattleStats, Difficulty, Ritual } from './warfare';
 export type Faction = "human" | "darkelf" | "corrupted";
+export type UpgradeId = "forgeWeapons" | "ironArmor" | "keenAxes";
 export type UnitClass = "worker" | "melee" | "ranged" | "cavalry" | "siege";
 export type BuildingClass =
   | "hall"
@@ -216,6 +217,10 @@ export interface HudState {
   abilityCooldown: number;
   holding: boolean;
   queuedOrders: number;
+  upgrades: Record<UpgradeId, boolean>;
+  researching: { id: UpgradeId; t: number; max: number } | null;
+  groups: Record<number, number>;
+  gameSpeed: number;
 }
 
 export const TEAM: Record<Faction, { primary: string; dark: string; light: string; name: string }> = {

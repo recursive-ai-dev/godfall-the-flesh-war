@@ -1,4 +1,4 @@
-import type { BuildingClass, Faction, UnitClass } from "./types";
+import type { BuildingClass, Faction, UnitClass, UpgradeId } from "./types";
 
 export interface UnitStats {
   name: Record<Faction, string>;
@@ -241,3 +241,39 @@ export const BUILD_ORDER: BuildingClass[] = [
   "tower",
   "hall",
 ];
+
+export interface UpgradeStats {
+  name: string;
+  building: "blacksmith" | "mill";
+  gold: number;
+  lumber: number;
+  time: number;
+  desc: string;
+}
+
+export const UPGRADE: Record<UpgradeId, UpgradeStats> = {
+  forgeWeapons: {
+    name: "Forged Blades",
+    building: "blacksmith",
+    gold: 160,
+    lumber: 100,
+    time: 24,
+    desc: "+15% unit damage",
+  },
+  ironArmor: {
+    name: "Tempered Plate",
+    building: "blacksmith",
+    gold: 160,
+    lumber: 120,
+    time: 24,
+    desc: "-15% incoming unit damage",
+  },
+  keenAxes: {
+    name: "Keen Tools",
+    building: "mill",
+    gold: 120,
+    lumber: 80,
+    time: 20,
+    desc: "+25% gold & lumber gather rate",
+  },
+};

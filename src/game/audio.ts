@@ -1,7 +1,19 @@
+import type { Faction } from "./types";
+
+const MUTE_KEY = "godfall_muted";
+
+function loadMuted(): boolean {
+  try {
+    return typeof localStorage !== "undefined" && localStorage.getItem(MUTE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export class GameAudio {
   ctx: AudioContext | null = null;
   master: GainNode | null = null;
-  muted = false;
+  muted = loadMuted();
   enabled = false;
 
   ensure() {
@@ -10,7 +22,7 @@ export class GameAudio {
     if (!AC) return;
     this.ctx = new AC();
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.22;
+    this.master.gain.value = this.muted ? 0 : 0.22;
     this.master.connect(this.ctx.destination);
     this.enabled = true;
   }
@@ -22,6 +34,9 @@ export class GameAudio {
 
   toggleMute() {
     this.muted = !this.muted;
+    try {
+      if (typeof localStorage !== "undefined") localStorage.setItem(MUTE_KEY, this.muted ? "1" : "0");
+    } catch { /* ignore storage errors */ }
     if (this.master) this.master.gain.value = this.muted ? 0 : 0.22;
     return this.muted;
   }
@@ -105,6 +120,19 @@ export class GameAudio {
   horn() {
     this.tone(180, 0.35, "sawtooth", 0.08);
     this.tone(270, 0.4, "triangle", 0.07, 0.05);
+  }
+  ability(f: Faction) {
+    if (f === "human") {
+      this.tone(440, 0.14, "triangle", 0.12);
+      this.tone(660, 0.2, "triangle", 0.09, 0.06);
+    } else if (f === "darkelf") {
+      this.noise(0.12, 0.08);
+      this.tone(720, 0.14, "sine", 0.09);
+      this.tone(420, 0.18, "sine", 0.07, 0.06);
+    } else {
+      this.tone(130, 0.24, "sawtooth", 0.11);
+      this.tone(195, 0.26, "sawtooth", 0.08, 0.05);
+    }
   }
 }
 

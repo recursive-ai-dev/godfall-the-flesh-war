@@ -15,6 +15,11 @@ function clampTile(v: number, max: number) {
   return v < 0 ? 0 : v >= max ? max - 1 : v | 0;
 }
 
+const MAP_SIZE = MAP_W * MAP_H;
+const bufCame = new Int32Array(MAP_SIZE);
+const bufGScore = new Float32Array(MAP_SIZE);
+const bufClosed = new Uint8Array(MAP_SIZE);
+
 export function astar(
   blocked: Uint8Array,
   sx: number,
@@ -31,10 +36,12 @@ export function astar(
 
   const w = MAP_W;
   const h = MAP_H;
-  const size = w * h;
-  const came = new Int32Array(size).fill(-1);
-  const gScore = new Float32Array(size).fill(1e9);
-  const closed = new Uint8Array(size);
+  const came = bufCame;
+  const gScore = bufGScore;
+  const closed = bufClosed;
+  came.fill(-1);
+  gScore.fill(1e9);
+  closed.fill(0);
   const open: { id: number; score: number }[] = [];
   function push(id: number, score: number) {
     let i=open.length;open.push({id,score});

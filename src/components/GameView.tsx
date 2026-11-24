@@ -44,8 +44,9 @@ export function GameView({
   const [touchCommand, setTouchCommand] = useState(false);
   const [paused, setPaused] = useState(false);
   const [buildOpen, setBuildOpen] = useState(false);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(() => audio.muted);
   const [briefing, setBriefing] = useState(true);
+  const miniDragRef = useRef(false);
 
   useEffect(() => {
     const t = window.setTimeout(() => setBriefing(false), 3400);
@@ -298,10 +299,29 @@ export function GameView({
     const mini = miniRef.current;
     const engine = engineRef.current;
     if (!mini || !engine) return;
+    if (e.button === 0) {
+      miniDragRef.current = true;
+      (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
+    }
     const r = mini.getBoundingClientRect();
-    const nx = (e.clientX - r.left) / r.width;
-    const ny = (e.clientY - r.top) / r.height;
+    const nx = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    const ny = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
     engine.minimapClick(nx, ny, e.button === 2);
+  }
+
+  function onMinimapMove(e: PointerEvent) {
+    if (!miniDragRef.current) return;
+    const mini = miniRef.current;
+    const engine = engineRef.current;
+    if (!mini || !engine) return;
+    const r = mini.getBoundingClientRect();
+    const nx = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    const ny = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+    engine.minimapClick(nx, ny, false);
+  }
+
+  function onMinimapUp() {
+    miniDragRef.current = false;
   }
 
   const outcome = hud?.outcome ?? "playing";
@@ -427,7 +447,17 @@ export function GameView({
             audio.click();
           }}
           onCancelQueue={(i) => engineRef.current?.cancelQueue(i)}
+          onResearch={(id) => engineRef.current?.research(id)}
+          onRecallGroup={(n) => engineRef.current?.recallGroup(n)}
+          onCycleSpeed={() => {
+            const e = engineRef.current;
+            if (!e) return;
+            e.gameSpeed = e.gameSpeed === 1 ? 1.5 : e.gameSpeed === 1.5 ? 2 : 1;
+            setHud(e.hud());
+          }}
           onMinimapDown={onMinimapDown}
+          onMinimapMove={onMinimapMove}
+          onMinimapUp={onMinimapUp}
           onMute={() => setMuted(audio.toggleMute())}
           onMenu={() => setPaused(true)}
         >
