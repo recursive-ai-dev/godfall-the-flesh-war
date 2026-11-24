@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "description": "Three-faction real-time strategy game: Godfall: The Flesh War",
-  "author": "recursive-ai-dev",
+  "author": "recursive-ai-dev <psychcoherence@gmail.com>",
   "license": "MIT",
   "type": "module",
   "main": "electron/main.cjs",
@@ -32,6 +32,7 @@
     "linux": {
       "category": "Game",
       "icon": "build/icon.png",
+      "maintainer": "recursive-ai-dev <psychcoherence@gmail.com>",
       "synopsis": "Three-faction RTS: Godfall: The Flesh War",
       "target": [
         "deb",
